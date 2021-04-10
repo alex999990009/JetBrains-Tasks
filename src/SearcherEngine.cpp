@@ -5,146 +5,188 @@
 #include "imgui.h"
 #include "backends/imgui_impl_sdl.h"
 #include "backends/imgui_impl_opengl3.h"
+#include "imfilebrowser.h"
+
+#include <iostream>
+#include <fstream>
 
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
-// About Desktop OpenGL function loaders:
-//  Modern desktop OpenGL doesn't have a standard portable header file to load OpenGL function pointers.
-//  Helper libraries are often used for this purpose! Here we are supporting a few common ones (gl3w, glew, glad).
-//  You may use another loader/header of your choice (glext, glLoadGen, etc.), or chose to manually implement your own.
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GL3W)
-#include <GL/gl3w.h> // Initialize with gl3wInit()
+#include <GL/gl3w.h>
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLEW)
-#include <GL/glew.h> // Initialize with glewInit()
+#include <GL/glew.h>
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD)
-#include <glad/glad.h> // Initialize with gladLoadGL()
+#include <glad/glad.h>
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLAD2)
-#include <glad/gl.h> // Initialize with gladLoadGL(...) or gladLoaderLoadGL()
+#include <glad/gl.h>
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING2)
-#define GLFW_INCLUDE_NONE      // GLFW including OpenGL headers causes ambiguity or multiple definition errors.
-#include <glbinding/Binding.h> // Initialize with glbinding::Binding::initialize()
+#define GLFW_INCLUDE_NONE
+#include <glbinding/Binding.h>
 #include <glbinding/gl/gl.h>
 using namespace gl;
 #elif defined(IMGUI_IMPL_OPENGL_LOADER_GLBINDING3)
-#define GLFW_INCLUDE_NONE        // GLFW including OpenGL headers causes ambiguity or multiple definition errors.
-#include <glbinding/glbinding.h> // Initialize with glbinding::initialize()
+#define GLFW_INCLUDE_NONE
+#include <glbinding/glbinding.h>
 #include <glbinding/gl/gl.h>
 using namespace gl;
 #else
 #include IMGUI_IMPL_OPENGL_LOADER_CUSTOM
 #endif
 
-SearcherEngine::SearcherEngine(/* args */)
+namespace searcher
 {
-    sdl = new SDLEnvironment();
-
-    window = sdl->getWindow();
-    gl_context = sdl->getContext();
-    glsl_version = sdl->getGlslVersion();
-
-    openGL = new OpenGLEnvironment();
-
-    // Setup Dear ImGui context
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    io = new ImGuiIO();
-    io = &ImGui::GetIO();
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-    //io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
-
-    // Setup Dear ImGui style
-    ImGui::StyleColorsDark();
-    //ImGui::StyleColorsClassic();
-
-    // Setup Platform/Renderer backends
-    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
-    ImGui_ImplOpenGL3_Init(glsl_version);
-}
-
-void SearcherEngine::run()
-{
-    // Our state
-    bool show_demo_window = true;
-    bool show_another_window = false;
-    ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
-    // Main loop
-    bool done = false;
-    while (!done)
+    SearcherEngine::SearcherEngine()
     {
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
-        SDL_Event event;
-        while (SDL_PollEvent(&event))
-        {
-            ImGui_ImplSDL2_ProcessEvent(&event);
-            if (event.type == SDL_QUIT)
-                done = true;
-            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
-                done = true;
-        }
+        sdlEnvPtr = std::make_unique<SDLEnvironment>();
 
-        // Start the Dear ImGui frame
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplSDL2_NewFrame(window);
-        ImGui::NewFrame();
+        window = sdlEnvPtr->getWindow();
+        gl_context = sdlEnvPtr->getContext();
+        glsl_version = sdlEnvPtr->getGlslVersion();
 
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
+        OpenGLEnvironment();
 
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
-        {
-            static float f = 0.0f;
-            static int counter = 0;
+        IMGUI_CHECKVERSION();
+        ImGui::CreateContext();
+        io = std::make_unique<ImGuiIO>(ImGui::GetIO());
 
-            ImGui::Begin("Hello, world!"); // Create a window called "Hello, world!" and append into it.
+        ImGui::StyleColorsDark();
 
-            ImGui::Text("This is some useful text.");          // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window); // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
+        ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+        ImGui_ImplOpenGL3_Init(glsl_version);
 
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);             // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float *)&clear_color); // Edit 3 floats representing a color
-
-            if (ImGui::Button("Button")) // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-            ImGui::End();
-        }
-
-        // 3. Show another simple window.
-        if (show_another_window)
-        {
-            ImGui::Begin("Another Window", &show_another_window); // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
-        }
-
-        // Rendering
-        ImGui::Render();
-        glViewport(0, 0, (int)io->DisplaySize.x, (int)io->DisplaySize.y);
-        glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
-        glClear(GL_COLOR_BUFFER_BIT);
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        SDL_GL_SwapWindow(window);
+        ImFontConfig config;
+        config.SizePixels = 24;
+        io->Fonts->AddFontDefault(&config);
     }
-}
 
-SearcherEngine::~SearcherEngine()
-{
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplSDL2_Shutdown();
-    ImGui::DestroyContext();
+    void SearcherEngine::search(std::filesystem::path &path, std::string &needle)
+    {
+        std::ifstream file;
+        file.open(path.string());
 
-    delete openGL;
-    delete sdl;
+        std::string line;
+        while (std::getline(file, line))
+        {
+            std::size_t position = -1;
+            while (true)
+            {
+                position = line.find(needle, position + 1);
+                if (position != std::string::npos)
+                {
+                    std::size_t leftPtr = position;
+                    std::size_t rightPtr = position;
+                    while (isalpha(line[leftPtr]))
+                    {
+                        --leftPtr;
+                        if (leftPtr == 0)
+                        {
+                            break;
+                        }
+                    }
+                    while (rightPtr < line.size() && isalpha(line[rightPtr]))
+                    {
+                        ++rightPtr;
+                    }
+                    words.push_back(line.substr(leftPtr + 1, rightPtr - leftPtr - 1));
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    void SearcherEngine::run()
+    {
+        const int MAX_STRING_SIZE = 255;
+        ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+
+        ImGui::FileBrowser fileDialog;
+        fileDialog.SetTitle("title");
+
+        bool done = false;
+        bool isFileLoaded = false;
+        std::filesystem::path path;
+        std::string oldNeedle;
+        std::string needle;
+        char buf[MAX_STRING_SIZE] = {0};
+        while (!done)
+        {
+            SDL_Event event;
+            while (SDL_PollEvent(&event))
+            {
+                ImGui_ImplSDL2_ProcessEvent(&event);
+                if (event.type == SDL_QUIT)
+                {
+                    done = true;
+                }
+                if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
+                {
+                    done = true;
+                }
+            }
+
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplSDL2_NewFrame(window);
+            ImGui::NewFrame();
+
+            bool isSearching = false;
+            if (ImGui::Begin("customization"))
+            {
+                std::string title = !path.empty() ? path.string() : "open file dialog for download file";
+                if (ImGui::Button(title.c_str()))
+                {
+                    fileDialog.Open();
+                }
+
+                ImGui::InputText("input needle", buf, MAX_STRING_SIZE);
+                needle = buf;
+                if (needle != oldNeedle)
+                {
+                    words.clear();
+                }
+
+                isSearching = ImGui::Button("search") | ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter));
+                fileDialog.Display();
+
+                if (fileDialog.HasSelected())
+                {
+                    path = fileDialog.GetSelected();
+                    isFileLoaded = true;
+                    fileDialog.ClearSelected();
+                }
+            }
+            ImGui::End();
+
+            ImGui::Begin("words");
+            if (isFileLoaded && needle != oldNeedle && isSearching)
+            {
+                search(path, needle);
+                oldNeedle = needle;
+            }
+
+            for (std::string word : words)
+            {
+                ImGui::Text(word.c_str());
+            }
+            ImGui::End();
+
+            // Rendering
+            ImGui::Render();
+            glViewport(0, 0, io->DisplaySize.x, io->DisplaySize.y);
+            glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+            glClear(GL_COLOR_BUFFER_BIT);
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+            SDL_GL_SwapWindow(window);
+        }
+    }
+
+    SearcherEngine::~SearcherEngine()
+    {
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplSDL2_Shutdown();
+        ImGui::DestroyContext();
+    }
 }

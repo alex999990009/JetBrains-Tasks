@@ -1,11 +1,8 @@
 #include "SearcherEngine.hpp"
 
-#include <iostream>
-
 int main()
 {
-    SearcherEngine searcher;
-    std::cout << "Hello World";
+    searcher::SearcherEngine searcher;
     searcher.run();
 
     return 0;

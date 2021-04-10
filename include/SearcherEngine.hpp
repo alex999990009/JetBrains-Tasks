@@ -3,23 +3,31 @@
 #include "imgui.h"
 #include "SDLEnvironment.hpp"
 #include "OpenGLEnvironment.hpp"
-#include <SDL.h>
+#include <SDL2/SDL.h>
 
-class SearcherEngine
+#include <filesystem>
+#include <vector>
+
+namespace searcher
 {
-private:
-    SDLEnvironment *sdl;
-    OpenGLEnvironment *openGL;
-    ImGuiIO *io;
+    class SearcherEngine
+    {
+    private:
+        std::unique_ptr<SDLEnvironment> sdlEnvPtr;
+        std::unique_ptr<ImGuiIO> io;
 
-    SDL_Window *window;
-    SDL_GLContext gl_context;
-    const char *glsl_version;
+        SDL_Window *window;
+        SDL_GLContext gl_context;
+        const char *glsl_version;
 
-    // ImGuiIO io;
-public:
-    SearcherEngine(/* args */);
-    ~SearcherEngine();
+        std::vector<std::string> words;
 
-    void run();
-};
+    public:
+        SearcherEngine();
+        ~SearcherEngine();
+
+        void search(std::filesystem::path &path, std::string &str);
+
+        void run();
+    };
+}

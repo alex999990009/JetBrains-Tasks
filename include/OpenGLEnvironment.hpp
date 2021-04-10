@@ -1,11 +1,10 @@
 #pragma once
 
-class OpenGLEnvironment
+namespace searcher
 {
-private:
-    /* data */
-public:
-    OpenGLEnvironment(/* args */);
-    ~OpenGLEnvironment() = default;
-};
-
+    struct OpenGLEnvironment
+    {
+        OpenGLEnvironment();
+        ~OpenGLEnvironment() = default;
+    };
+}

@@ -3,7 +3,6 @@ project(main VERSION 0.1.0)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -std=c++17 -fPIC -lstdc++fs")
 
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/external_includes/imgui)
 
 include(CTest)
 enable_testing()
@@ -31,14 +30,33 @@ set(IMGUI_SOURCES
     external_includes/imgui/backends/imgui_impl_sdl.cpp
    )
 
-
-add_executable(main main.cpp ${IMGUI_SOURCES})
+set (SOURCES
+    src/main.cpp
+    src/SearcherEngine.cpp
+    src/SDLEnvironment.cpp
+    src/OpenGLEnvironment.cpp
+    )
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/external_includes)
 execute_process(
     COMMAND git clone "https://github.com/ocornut/imgui.git" imgui
     WORKING_DIRECTORY external_includes)
-include_directories(external_includes/imgui/)
+include_directories(external_includes/imgui)
+
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/external_includes)
+execute_process(
+    COMMAND git clone "https://github.com/AirGuanZ/imgui-filebrowser.git" imgui-filebrowser
+    WORKING_DIRECTORY external_includes)
+include_directories(external_includes/imgui-filebrowser)
+
+add_executable(main ${SOURCES} ${IMGUI_SOURCES})
+
+
+
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/external_includes/imgui)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/external_includes/imgui-filebrowser)
+
+include_directories(include)
 
 include_directories(${SDL2_INCLUDE_DIRS})
 include_directories(${OPENGL_INCLUDE_DIRS})
