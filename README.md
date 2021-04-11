@@ -11,4 +11,4 @@ make
 ```
 
 ## Превью
-![Searcher](images/view.jpg)
+![view](images/view.jpg)
