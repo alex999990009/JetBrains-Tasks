@@ -188,27 +188,21 @@ namespace searcher
                 }
 
                 ImGui::Dummy(ImVec2(0, 20));
-                ImGui::Text("Choose the mode (green colour - current mode)");
+
+                ImGui::Text("Choose the mode");
                 bool changeMode = false;
 
-                ImVec4 red = ImVec4(255, 0, 0, 1);
-                ImVec4 green = ImVec4(0, 255, 0, 0);
-
-                if (ImGui::ColorButton("Press this button if you want to search word as substring", isSubstring ? green : red))
+                if (ImGui::RadioButton("substring", isSubstring))
                 {
                     changeMode = true;
                     isSubstring = true;
                 }
-                ImGui::SameLine();
-                ImGui::Text("substring");
 
-                if (ImGui::ColorButton("Press this button if you want to search word as subsequence", !isSubstring ? green : red))
+                if (ImGui::RadioButton("subsequence", !isSubstring))
                 {
                     changeMode = true;
                     isSubstring = false;
                 }
-                ImGui::SameLine();
-                ImGui::Text("subsequence");
 
                 ImGui::Dummy(ImVec2(0, 20));
 
