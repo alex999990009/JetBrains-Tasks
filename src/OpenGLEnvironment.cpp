@@ -1,10 +1,8 @@
 #include "OpenGLEnvironment.hpp"
 
-#include "imgui.h"
-#include "backends/imgui_impl_sdl.h"
-#include "backends/imgui_impl_opengl3.h"
-
-#include <cstdio>
+#include <imgui.h>
+#include <backends/imgui_impl_sdl.h>
+#include <backends/imgui_impl_opengl3.h>
 
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
@@ -30,6 +28,9 @@ using namespace gl;
 #include IMGUI_IMPL_OPENGL_LOADER_CUSTOM
 #endif
 
+#include <cstdio>
+#include <stdexcept>
+
 namespace searcher
 {
     OpenGLEnvironment::OpenGLEnvironment()
@@ -53,8 +54,7 @@ namespace searcher
 #endif
         if (err)
         {
-            fprintf(stderr, "Failed to initialize OpenGL loader!\n");
-            // return 1;
+            throw std::runtime_error("Failed to initialize OpenGL loader!");
         }
     }
 }

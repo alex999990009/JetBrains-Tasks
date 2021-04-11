@@ -1,13 +1,14 @@
 #include "SDLEnvironment.hpp"
 
+#include <stdexcept>
+
 namespace searcher
 {
     SDLEnvironment::SDLEnvironment()
     {
         if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
         {
-            printf("Error: %s\n", SDL_GetError());
-            // return -1;
+            throw std::runtime_error(SDL_GetError());
         }
 
 #if defined(IMGUI_IMPL_OPENGL_ES2)
@@ -36,24 +37,24 @@ namespace searcher
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
         SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
-        window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+        SDL_WindowFlags window_flags = static_cast<SDL_WindowFlags>(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
         window = SDL_CreateWindow("Searcher", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
         gl_context = SDL_GL_CreateContext(window);
         SDL_GL_MakeCurrent(window, gl_context);
         SDL_GL_SetSwapInterval(1);
     }
 
-    SDL_Window *SDLEnvironment::getWindow()
+    SDL_Window *SDLEnvironment::getWindow() const noexcept
     {
         return window;
     }
 
-    SDL_GLContext SDLEnvironment::getContext()
+    SDL_GLContext SDLEnvironment::getContext() const noexcept
     {
         return gl_context;
     }
 
-    const char *SDLEnvironment::getGlslVersion()
+    std::string SDLEnvironment::getGlslVersion() const noexcept
     {
         return glsl_version;
     }

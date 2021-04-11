@@ -2,13 +2,10 @@
 #include "SDLEnvironment.hpp"
 #include "OpenGLEnvironment.hpp"
 
-#include "imgui.h"
-#include "backends/imgui_impl_sdl.h"
-#include "backends/imgui_impl_opengl3.h"
-#include "imfilebrowser.h"
-
-#include <iostream>
-#include <fstream>
+#include <imgui.h>
+#include <backends/imgui_impl_sdl.h>
+#include <backends/imgui_impl_opengl3.h>
+#include <imfilebrowser.h>
 
 #if defined(IMGUI_IMPL_OPENGL_ES2)
 #include <GLES2/gl2.h>
@@ -34,15 +31,17 @@ using namespace gl;
 #include IMGUI_IMPL_OPENGL_LOADER_CUSTOM
 #endif
 
+#include <iostream>
+#include <fstream>
+
 namespace searcher
 {
     SearcherEngine::SearcherEngine()
     {
-        sdlEnvPtr = std::make_unique<SDLEnvironment>();
+        sdlEnv = std::make_unique<SDLEnvironment>();
 
-        window = sdlEnvPtr->getWindow();
-        gl_context = sdlEnvPtr->getContext();
-        glsl_version = sdlEnvPtr->getGlslVersion();
+        window = sdlEnv->getWindow();
+        gl_context = sdlEnv->getContext();
 
         OpenGLEnvironment();
 
@@ -50,17 +49,35 @@ namespace searcher
         ImGui::CreateContext();
         io = std::make_unique<ImGuiIO>(ImGui::GetIO());
 
-        ImGui::StyleColorsDark();
+        ImGui::StyleColorsLight();
 
         ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
-        ImGui_ImplOpenGL3_Init(glsl_version);
+        ImGui_ImplOpenGL3_Init(sdlEnv->getGlslVersion().c_str());
 
         ImFontConfig config;
         config.SizePixels = 24;
         io->Fonts->AddFontDefault(&config);
     }
 
-    void SearcherEngine::search(std::filesystem::path &path, std::string &needle)
+    bool SearcherEngine::checkSymbol(const char c) const noexcept
+    {
+        if (c == ' ' || c == '\t' || c == '\n' || c == '\a')
+        {
+            return true;
+        }
+        return false;
+    }
+
+    void SearcherEngine::printWord(const std::string &word, const std::size_t position, const std::size_t lenSubStr) const noexcept
+    {
+        ImGui::Text(word.substr(0, position).c_str());
+        ImGui::SameLine(0, 0);
+        ImGui::TextColored(ImVec4(255, 0, 0, 1), word.substr(position, lenSubStr).c_str());
+        ImGui::SameLine(0, 0);
+        ImGui::Text(word.substr(position + lenSubStr, word.size() - (position + lenSubStr)).c_str());
+    }
+
+    void SearcherEngine::search(const std::filesystem::path &path, const std::string &needle)
     {
         std::ifstream file;
         file.open(path.string());
@@ -76,19 +93,24 @@ namespace searcher
                 {
                     std::size_t leftPtr = position;
                     std::size_t rightPtr = position;
-                    while (isalpha(line[leftPtr]))
+                    while (!checkSymbol(line[leftPtr]))
                     {
-                        --leftPtr;
                         if (leftPtr == 0)
                         {
+                            leftPtr = -1;
                             break;
                         }
+                        --leftPtr;
                     }
-                    while (rightPtr < line.size() && isalpha(line[rightPtr]))
+                    while (rightPtr < line.size() && !checkSymbol(line[rightPtr]))
                     {
                         ++rightPtr;
                     }
-                    words.push_back(line.substr(leftPtr + 1, rightPtr - leftPtr - 1));
+
+                    std::string word = line.substr(leftPtr + 1, rightPtr - leftPtr - 1);
+                    printWord(word, position - leftPtr - 1, needle.size());
+
+                    words.push_back(std::move(word));
                 }
                 else
                 {
@@ -133,21 +155,30 @@ namespace searcher
             ImGui::NewFrame();
 
             bool isSearching = false;
-            if (ImGui::Begin("customization"))
+            int width, height;
+            SDL_GetWindowSize(window, &width, &height);
+            ImGui::SetNextWindowPos(ImVec2(.0f, .0f), ImGuiCond_Always);
+            ImGui::SetNextWindowSize(ImVec2(width + 2, height + 2), ImGuiCond_Always);
+            if (ImGui::Begin("window searcher"))
             {
-                std::string title = !path.empty() ? path.string() : "open file dialog for download file";
+                std::string title = !path.empty() ? path.string() : "choose file for searching words";
                 if (ImGui::Button(title.c_str()))
                 {
                     fileDialog.Open();
                 }
 
-                ImGui::InputText("input needle", buf, MAX_STRING_SIZE);
+                ImGui::Dummy(ImVec2(0.0f, 20.0f));
+                ImGui::Text("type needle and press Enter or button \"search\"");
+
+                ImGui::InputText("", buf, MAX_STRING_SIZE);
                 needle = buf;
                 if (needle != oldNeedle)
                 {
                     words.clear();
+                    oldNeedle = needle;
                 }
 
+                ImGui::SameLine();
                 isSearching = ImGui::Button("search") | ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter));
                 fileDialog.Display();
 
@@ -158,18 +189,22 @@ namespace searcher
                     fileDialog.ClearSelected();
                 }
             }
-            ImGui::End();
 
-            ImGui::Begin("words");
-            if (isFileLoaded && needle != oldNeedle && isSearching)
+            ImGui::Dummy(ImVec2(0.0f, 20.0f));
+            ImGui::Text("found words");
+            ImGui::Text("-----------");
+
+            if (isFileLoaded && isSearching)
             {
+                words.clear();
                 search(path, needle);
-                oldNeedle = needle;
             }
-
-            for (std::string word : words)
+            else
             {
-                ImGui::Text(word.c_str());
+                for (std::string word : words)
+                {
+                    printWord(word, word.find(needle), needle.size());
+                }
             }
             ImGui::End();
 

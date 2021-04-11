@@ -2,24 +2,23 @@
 
 #include <SDL2/SDL.h>
 
-#include <memory>
+#include <string>
 
 namespace searcher
 {
     class SDLEnvironment
     {
     private:
-        SDL_WindowFlags window_flags;
         SDL_Window *window;
         SDL_GLContext gl_context;
-        const char *glsl_version;
+        std::string glsl_version;
 
     public:
         SDLEnvironment();
         ~SDLEnvironment();
 
-        SDL_Window *getWindow();
-        SDL_GLContext getContext();
-        const char *getGlslVersion();
+        SDL_Window *getWindow() const noexcept;
+        SDL_GLContext getContext() const noexcept;
+        std::string getGlslVersion() const noexcept;
     };
 }
