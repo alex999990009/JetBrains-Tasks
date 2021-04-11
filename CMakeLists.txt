@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(main VERSION 0.1.0)
+project(searcher VERSION 0.1.0)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic -std=c++17 -fPIC -lstdc++fs")
 
@@ -44,7 +44,7 @@ execute_process(
     WORKING_DIRECTORY external_includes)
 include_directories(external_includes/imgui-filebrowser)
 
-add_executable(main ${SOURCES} ${IMGUI_SOURCES})
+add_executable(searcher ${SOURCES} ${IMGUI_SOURCES})
 
 include_directories(include)
 include_directories(${CMAKE_CURRENT_BINARY_DIR}/external_includes/imgui)
