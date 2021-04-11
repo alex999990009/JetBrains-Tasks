@@ -1,7 +1,6 @@
 #pragma once
 
 #include "SDLEnvironment.hpp"
-#include "OpenGLEnvironment.hpp"
 
 #include <imgui.h>
 #include <SDL2/SDL.h>
@@ -16,17 +15,15 @@ namespace searcher
     private:
         std::unique_ptr<SDLEnvironment> sdlEnv;
         std::unique_ptr<ImGuiIO> io;
+        std::vector<std::string> foundWords;
 
-        SDL_Window *window;
-        SDL_GLContext gl_context;
+        void printWord(const std::string &word, const std::vector<std::size_t> &positions) const noexcept;
 
-        std::vector<std::string> words;
+        bool checkSubstring(const std::string &word, const std::string &needle) const noexcept;
 
-        void search(const std::filesystem::path &path, const std::string &str);
+        bool checkSubsequence(const std::string &word, const std::string &needle) const noexcept;
 
-        bool checkSymbol(const char c) const noexcept;
-
-        void printWord(const std::string &word, const std::size_t position, const std::size_t lenSubStr) const noexcept;
+        void search(const std::filesystem::path &path, const std::string &needle, bool isSubstring);
 
     public:
         SearcherEngine();

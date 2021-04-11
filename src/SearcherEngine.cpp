@@ -1,5 +1,4 @@
 #include "SearcherEngine.hpp"
-#include "SDLEnvironment.hpp"
 #include "OpenGLEnvironment.hpp"
 
 #include <imgui.h>
@@ -33,15 +32,13 @@ using namespace gl;
 
 #include <iostream>
 #include <fstream>
+#include <iterator>
 
 namespace searcher
 {
     SearcherEngine::SearcherEngine()
     {
         sdlEnv = std::make_unique<SDLEnvironment>();
-
-        window = sdlEnv->getWindow();
-        gl_context = sdlEnv->getContext();
 
         OpenGLEnvironment();
 
@@ -51,7 +48,7 @@ namespace searcher
 
         ImGui::StyleColorsLight();
 
-        ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
+        ImGui_ImplSDL2_InitForOpenGL(sdlEnv->getWindow(), sdlEnv->getContext());
         ImGui_ImplOpenGL3_Init(sdlEnv->getGlslVersion().c_str());
 
         ImFontConfig config;
@@ -59,62 +56,82 @@ namespace searcher
         io->Fonts->AddFontDefault(&config);
     }
 
-    bool SearcherEngine::checkSymbol(const char c) const noexcept
+    void SearcherEngine::printWord(const std::string &word, const std::vector<std::size_t> &positions) const noexcept
     {
-        if (c == ' ' || c == '\t' || c == '\n' || c == '\a')
+        std::size_t lastIndex = 0;
+        for (std::size_t position : positions)
         {
+            ImGui::Text(word.substr(lastIndex, position - lastIndex).c_str());
+            ImGui::SameLine(0, 0);
+            ImGui::TextColored(ImVec4(255, 0, 0, 1), std::string(1, word[position]).c_str());
+            ImGui::SameLine(0, 0);
+            lastIndex = position + 1;
+        }
+        ImGui::Text(word.substr(lastIndex, word.size() - lastIndex).c_str());
+    }
+
+    bool SearcherEngine::checkSubstring(const std::string &word, const std::string &needle) const noexcept
+    {
+        std::size_t position = word.find(needle);
+        if (position != std::string::npos)
+        {
+            std::vector<std::size_t> positions(needle.size());
+            for (std::size_t i = position; i < position + needle.size(); ++i)
+            {
+                positions[i - position] = i;
+            }
+            printWord(word, positions);
             return true;
         }
         return false;
     }
 
-    void SearcherEngine::printWord(const std::string &word, const std::size_t position, const std::size_t lenSubStr) const noexcept
+    bool SearcherEngine::checkSubsequence(const std::string &word, const std::string &needle) const noexcept
     {
-        ImGui::Text(word.substr(0, position).c_str());
-        ImGui::SameLine(0, 0);
-        ImGui::TextColored(ImVec4(255, 0, 0, 1), word.substr(position, lenSubStr).c_str());
-        ImGui::SameLine(0, 0);
-        ImGui::Text(word.substr(position + lenSubStr, word.size() - (position + lenSubStr)).c_str());
+        std::vector<std::size_t> positions(needle.size());
+        std::size_t ptrNeedle = 0;
+        for (std::size_t i = 0; i < word.size(); ++i)
+        {
+            if (needle[ptrNeedle] == word[i])
+            {
+                positions[ptrNeedle++] = i;
+            }
+            if (ptrNeedle == needle.size())
+            {
+                break;
+            }
+        }
+        if (ptrNeedle == needle.size())
+        {
+            printWord(word, positions);
+            return true;
+        }
+        return false;
     }
 
-    void SearcherEngine::search(const std::filesystem::path &path, const std::string &needle)
+    void SearcherEngine::search(const std::filesystem::path &path, const std::string &needle, bool isSubstring)
     {
+        foundWords.clear();
+
         std::ifstream file;
         file.open(path.string());
 
         std::string line;
         while (std::getline(file, line))
         {
-            std::size_t position = -1;
-            while (true)
+            std::stringstream ss(line);
+
+            std::vector<std::string> tokens;
+            std::copy(std::istream_iterator<std::string>(ss),
+                      std::istream_iterator<std::string>{},
+                      std::back_inserter(tokens));
+
+            for (std::string &word : tokens)
             {
-                position = line.find(needle, position + 1);
-                if (position != std::string::npos)
+                if ((isSubstring && checkSubstring(word, needle)) ||
+                    (!isSubstring && checkSubsequence(word, needle)))
                 {
-                    std::size_t leftPtr = position;
-                    std::size_t rightPtr = position;
-                    while (!checkSymbol(line[leftPtr]))
-                    {
-                        if (leftPtr == 0)
-                        {
-                            leftPtr = -1;
-                            break;
-                        }
-                        --leftPtr;
-                    }
-                    while (rightPtr < line.size() && !checkSymbol(line[rightPtr]))
-                    {
-                        ++rightPtr;
-                    }
-
-                    std::string word = line.substr(leftPtr + 1, rightPtr - leftPtr - 1);
-                    printWord(word, position - leftPtr - 1, needle.size());
-
-                    words.push_back(std::move(word));
-                }
-                else
-                {
-                    break;
+                    foundWords.push_back(word);
                 }
             }
         }
@@ -126,14 +143,15 @@ namespace searcher
         ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
         ImGui::FileBrowser fileDialog;
-        fileDialog.SetTitle("title");
-
-        bool done = false;
         bool isFileLoaded = false;
         std::filesystem::path path;
+
         std::string oldNeedle;
         std::string needle;
         char buf[MAX_STRING_SIZE] = {0};
+        bool isSubstring = true;
+
+        bool done = false;
         while (!done)
         {
             SDL_Event event;
@@ -144,42 +162,69 @@ namespace searcher
                 {
                     done = true;
                 }
-                if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
+                if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE &&
+                    event.window.windowID == SDL_GetWindowID(sdlEnv->getWindow()))
                 {
                     done = true;
                 }
             }
 
             ImGui_ImplOpenGL3_NewFrame();
-            ImGui_ImplSDL2_NewFrame(window);
+            ImGui_ImplSDL2_NewFrame(sdlEnv->getWindow());
             ImGui::NewFrame();
 
             bool isSearching = false;
             int width, height;
-            SDL_GetWindowSize(window, &width, &height);
-            ImGui::SetNextWindowPos(ImVec2(.0f, .0f), ImGuiCond_Always);
+            SDL_GetWindowSize(sdlEnv->getWindow(), &width, &height);
+            ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
             ImGui::SetNextWindowSize(ImVec2(width + 2, height + 2), ImGuiCond_Always);
+
             if (ImGui::Begin("window searcher"))
             {
-                std::string title = !path.empty() ? path.string() : "choose file for searching words";
+                std::string title = !path.empty() ? path.string() : "Choose file for searching words";
                 if (ImGui::Button(title.c_str()))
                 {
                     fileDialog.Open();
                 }
 
-                ImGui::Dummy(ImVec2(0.0f, 20.0f));
-                ImGui::Text("type needle and press Enter or button \"search\"");
+                ImGui::Dummy(ImVec2(0, 20));
+                ImGui::Text("Choose the mode (green colour - current mode)");
+                bool changeMode = false;
 
+                ImVec4 red = ImVec4(255, 0, 0, 1);
+                ImVec4 green = ImVec4(0, 255, 0, 0);
+
+                if (ImGui::ColorButton("Press this button if you want to search word as substring", isSubstring ? green : red))
+                {
+                    changeMode = true;
+                    isSubstring = true;
+                }
+                ImGui::SameLine();
+                ImGui::Text("substring");
+
+                if (ImGui::ColorButton("Press this button if you want to search word as subsequence", !isSubstring ? green : red))
+                {
+                    changeMode = true;
+                    isSubstring = false;
+                }
+                ImGui::SameLine();
+                ImGui::Text("subsequence");
+
+                ImGui::Dummy(ImVec2(0, 20));
+
+                ImGui::Text("Type needle and press Enter or button \"search\"");
                 ImGui::InputText("", buf, MAX_STRING_SIZE);
                 needle = buf;
                 if (needle != oldNeedle)
                 {
-                    words.clear();
+                    foundWords.clear();
                     oldNeedle = needle;
                 }
-
                 ImGui::SameLine();
-                isSearching = ImGui::Button("search") | ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter));
+                isSearching = ImGui::Button("search") |
+                              ImGui::IsKeyPressed(ImGui::GetKeyIndex(ImGuiKey_Enter)) |
+                              changeMode;
+
                 fileDialog.Display();
 
                 if (fileDialog.HasSelected())
@@ -189,21 +234,27 @@ namespace searcher
                     fileDialog.ClearSelected();
                 }
             }
+            ImGui::Dummy(ImVec2(0, 20));
 
-            ImGui::Dummy(ImVec2(0.0f, 20.0f));
-            ImGui::Text("found words");
-            ImGui::Text("-----------");
+            ImGui::Text("Found words:");
+            ImGui::Text("------------");
 
             if (isFileLoaded && isSearching)
             {
-                words.clear();
-                search(path, needle);
+                search(path, needle, isSubstring);
             }
             else
             {
-                for (std::string word : words)
+                for (std::string &word : foundWords)
                 {
-                    printWord(word, word.find(needle), needle.size());
+                    if (isSubstring)
+                    {
+                        checkSubstring(word, needle);
+                    }
+                    else
+                    {
+                        checkSubsequence(word, needle);
+                    }
                 }
             }
             ImGui::End();
@@ -211,10 +262,11 @@ namespace searcher
             // Rendering
             ImGui::Render();
             glViewport(0, 0, io->DisplaySize.x, io->DisplaySize.y);
-            glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w);
+            glClearColor(clear_color.x * clear_color.w, clear_color.y * clear_color.w, clear_color.z * clear_color.w,
+                         clear_color.w);
             glClear(GL_COLOR_BUFFER_BIT);
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-            SDL_GL_SwapWindow(window);
+            SDL_GL_SwapWindow(sdlEnv->getWindow());
         }
     }
 
